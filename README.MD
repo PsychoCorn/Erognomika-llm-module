@@ -564,24 +564,21 @@ app.include_router(llm_router)
 
 ```json
 {
-  "user_message": "Разбей задачу по API на несколько подзадач",
+  "user_message": "Разбей задачу на подзадачи",
   "context": {
-    "chat_history": [
-      {
-        "role": "user",
-        "content": "Нужно доделать модуль для agile-доски"
-      }
-    ],
+    "project": {
+      "project_id": 100,
+      "project_name": "Agile Board"
+    },
+    "chat_history": [],
     "project_tasks": [
       {
         "id": 1,
-        "project_id": 100,
-        "project_name": "Agile Board",
         "title": "Сделать API",
-        "description": "Нужно поднять backend на FastAPI",
+        "description": "Поднять backend на FastAPI",
         "parent_id": null,
         "start_date": "2026-03-06",
-        "end_date": "2026-03-10",
+        "end_date": "2026-03-15",
         "status": "In Progress"
       }
     ],

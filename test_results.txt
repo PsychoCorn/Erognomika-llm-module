@@ -1,7 +1,31 @@
-❯ curl http://127.0.0.1:8000/llm/health
-{"status":"ok"}%                                                                                                  
-╭─░▒▓ ~/Ucheba/erognomika  master ?3                                        ✔  erognomika Py  21:56:31 ▓▒░─╮
-❯ >....                                                                                                           
+curl http://127.0.0.1:8000/llm/health
+
+{
+    "status": "ok"
+}
+
+curl -X POST http://127.0.0.1:8000/llm/chat \
+-H "Content-Type: application/json" \
+-d '{
+  "user_message": "Разбей задачу по разработке API на несколько подзадач",
+  "context": {
+    "project": {
+      "project_id": 100,
+      "project_name": "Agile Board"
+    },
+    "chat_history": [
+      {
+        "role": "user",
+        "content": "Нужно доделать backend для agile доски"
+      },
+      {
+        "role": "assistant",
+        "content": "Хорошо, что именно нужно сделать?"
+      }
+    ],
+    "project_tasks": [
+      {
+        "id": 1,
         "title": "Сделать API",
         "description": "Поднять backend на FastAPI",
         "parent_id": null,
@@ -10,12 +34,67 @@
         "status": "In Progress"
       }
     ],
-    "current_date": "2026-03-06"
+    "current_date": "2026-03-07"
   }
 }'
-{"message_to_user":"Я разбил задачу 'Сделать API' на три подзадачи: 'Разработать эндпоинты', 'Настроить базу данных' и 'Добавить аутентификацию'. Все они будут относиться к проекту Agile Board (ID 100) и иметь статус 'TODO'. Даты установлены с сегодняшнего дня по 15 марта 2026 года.","add_tasks":[{"project_id":100,"title":"Разработать эндпоинты","description":"Создать основные эндпоинты для управления задачами и проектами","parent_id":1,"start_date":"2026-03-06","end_date":"2026-03-15","status":"TODO"},{"project_id":100,"title":"Настроить базу данных","description":"Подключить и настроить базу данных для хранения данных задач","parent_id":1,"start_date":"2026-03-06","end_date":"2026-03-15","status":"TODO"},{"project_id":100,"title":"Добавить аутентификацию","description":"Реализовать систему аутентификации для доступа к API","parent_id":1,"start_date":"2026-03-06","end_date":"2026-03-15","status":"TODO"}],"change_tasks":[],"delete_tasks":[]}%                                                                      
-╭─░▒▓ ~/Ucheba/erognomika  master ?3                                  ✔  20s  erognomika Py  21:57:05 ▓▒░─╮
-❯ >....                                                                                                           
+
+{
+    "message_to_user": "Я разбил задачу 'Сделать API' на четыре подзадачи: создание эндпоинтов, настройка базы данных, добавление аутентификации и тестирование API. Все подзадачи добавлены как дочерние к задаче с ID 1.",
+    "add_tasks": [
+        {
+            "title": "Создать эндпоинты для задач",
+            "description": "Реализовать CRUD операции для управления задачами через API",
+            "parent_id": 1,
+            "start_date": "2026-03-07",
+            "end_date": "2026-03-10",
+            "status": "TODO"
+        },
+        {
+            "title": "Настроить базу данных",
+            "description": "Подключить и настроить базу данных для хранения задач",
+            "parent_id": 1,
+            "start_date": "2026-03-07",
+            "end_date": "2026-03-09",
+            "status": "TODO"
+        },
+        {
+            "title": "Добавить аутентификацию",
+            "description": "Реализовать систему аутентификации пользователей для API",
+            "parent_id": 1,
+            "start_date": "2026-03-10",
+            "end_date": "2026-03-12",
+            "status": "TODO"
+        },
+        {
+            "title": "Протестировать API",
+            "description": "Написать и выполнить тесты для всех эндпоинтов API",
+            "parent_id": 1,
+            "start_date": "2026-03-13",
+            "end_date": "2026-03-15",
+            "status": "TODO"
+        }
+    ],
+    "change_tasks": [],
+    "delete_tasks": []
+}
+
+curl -X POST http://127.0.0.1:8000/llm/encouragement \
+-H "Content-Type: application/json" \
+-d '{
+  "context": {
+    "project": {
+      "project_id": 100,
+      "project_name": "Agile Board"
+    },
+    "chat_history": [
+      {
+        "role": "user",
+        "content": "Что-то сегодня тяжело идет разработка"
+      }
+    ],
+    "project_tasks": [
+      {
+        "id": 1,
         "title": "Сделать API",
         "description": "Поднять backend на FastAPI",
         "parent_id": null,
@@ -24,7 +103,13 @@
         "status": "In Progress"
       }
     ],
-    "current_date": "2026-03-06"
+    "current_date": "2026-03-07"
   }
 }'
-{"message_to_user":"Вижу, что разработка сегодня идет тяжело. Не переживай, ты уже начал работу над API — это отличный старт! Продолжай в том же духе, и всё получится.","add_tasks":[],"change_tasks":[],"delete_tasks":[]}%
+
+{
+    "message_to_user": "Разработка иногда бывает сложной, но ты уже в процессе — API на FastAPI в работе. Продолжай в том же духе, у тебя всё получится!",
+    "add_tasks": [],
+    "change_tasks": [],
+    "delete_tasks": []
+}

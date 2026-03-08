@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 try:
     from config import Settings, get_settings
-    from llm import generate_chat_response, generate_encouragement_response
+    from llm import agenerate_chat_response, agenerate_encouragement_response
     from schemas import ChatRequest, EncouragementRequest, LLMResponse
 except ImportError:  # pragma: no cover
     from src.config import Settings, get_settings
-    from src.llm import generate_chat_response, generate_encouragement_response
+    from src.llm import agenerate_chat_response, agenerate_encouragement_response
     from src.schemas import ChatRequest, EncouragementRequest, LLMResponse
 
 
@@ -16,17 +16,20 @@ router = APIRouter(prefix="/llm", tags=["llm"])
 
 
 @router.get("/health")
-def healthcheck() -> dict[str, str]:
+async def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
 
 
 @router.post("/chat", response_model=LLMResponse)
-def chat(
+async def chat(
     request: ChatRequest,
     settings: Settings = Depends(get_settings),
 ) -> LLMResponse:
     try:
-        return generate_chat_response(request, settings)
+        return await agenerate_chat_response(
+            request,
+            settings.get_llm_config(),
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -46,12 +49,15 @@ def chat(
 
 
 @router.post("/encouragement", response_model=LLMResponse)
-def encouragement(
+async def encouragement(
     request: EncouragementRequest,
     settings: Settings = Depends(get_settings),
 ) -> LLMResponse:
     try:
-        return generate_encouragement_response(request, settings)
+        return await agenerate_encouragement_response(
+            request,
+            settings.get_llm_config(),
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

@@ -172,10 +172,16 @@ HTTP-маршруты FastAPI.
 - `id`
 - `title`
 - `description`
-- `parent_id`
-- `start_date`
-- `end_date`
-- `status`
+- `column_name`
+- `due_date`
+- `priority`
+- `task_type_name`
+
+Важно:
+
+- `column_name` — название kanban-колонки задачи;
+- `task_type_name` — название типа задачи;
+- backend должен преобразовать эти значения в `column_id` и `task_type_id` при работе с БД.
 
 ---
 
@@ -189,12 +195,17 @@ HTTP-маршруты FastAPI.
 
 - `title`
 - `description`
-- `parent_id`
-- `start_date`
-- `end_date`
-- `status`
+- `column_name`
+- `due_date`
+- `priority`
+- `task_type_name`
 
 `project_id` здесь нет — он берется из `context.project`.
+
+Также:
+
+- `column_name` должен совпадать с одним из значений `context.columns`;
+- `task_type_name` должен совпадать с одним из значений `context.task_types`.
 
 ---
 
@@ -209,12 +220,10 @@ HTTP-маршруты FastAPI.
 - `id`
 - `title`
 - `description`
-- `parent_id`
-- `start_date`
-- `end_date`
-- `status`
-
-`project_id` здесь тоже нет — backend должен применять изменение только внутри текущего проекта.
+- `column_name`
+- `due_date`
+- `priority`
+- `task_type_name`
 
 ---
 
@@ -236,9 +245,18 @@ HTTP-маршруты FastAPI.
 Содержит:
 
 - `project`
+- `columns`
+- `task_types`
 - `chat_history`
 - `project_tasks`
 - `current_date`
+
+`columns` — список kanban-колонок проекта.
+
+`task_types` — список типов задач.
+
+Модель должна использовать только значения из этих списков
+для полей `column_name` и `task_type_name`.
 
 ---
 
@@ -291,6 +309,24 @@ HTTP-маршруты FastAPI.
 
 - при создании задач backend сам проставляет `project_id`;
 - при изменении и удалении backend должен проверять, что задача принадлежит `context.project.project_id`.
+
+---
+
+## Почему используются column_name и task_type_name
+
+Модель работает с названиями колонок и типов задач, а не с UUID.
+
+Причины:
+
+- UUID плохо воспринимаются LLM;
+- названия колонок и типов задач понятны модели;
+- уменьшается вероятность ошибок и галлюцинаций;
+- backend сохраняет строгую привязку к БД.
+
+При обработке ответа модели backend должен выполнять mapping:
+
+- `column_name -> column_id`
+- `task_type_name -> task_type_id`
 
 ---
 
@@ -427,9 +463,36 @@ LLM_MAX_CONCURRENCY=3
   "user_message": "Разбей задачу по разработке API на несколько подзадач",
   "context": {
     "project": {
-      "project_id": 100,
+      "project_id": "c1c36e3a-8a27-4e3b-9f8f-7a6a65c2b4b0",
       "project_name": "Agile Board"
     },
+    "columns": [
+      {
+        "id": "a7f3e0b4-31c7-4e88-a3a2-b5e2f6f8d9a1",
+        "name": "Todo",
+        "sort_order": 1
+      },
+      {
+        "id": "c5c3a6a0-1a3a-4c5d-9bde-27cba4e09c2f",
+        "name": "In Progress",
+        "sort_order": 2
+      },
+      {
+        "id": "f1c2d3e4-a5b6-7c8d-9e0f-123456789abc",
+        "name": "Done",
+        "sort_order": 3
+      }
+    ],
+    "task_types": [
+      {
+        "id": "c3d2b1a0-9e8f-7d6c-5b4a-3210fedcba98",
+        "name": "Task"
+      },
+      {
+        "id": "f9e8d7c6-b5a4-3210-1234-abcdefabcdef",
+        "name": "Bug"
+      }
+    ],
     "chat_history": [
       {
         "role": "user",
@@ -438,39 +501,17 @@ LLM_MAX_CONCURRENCY=3
     ],
     "project_tasks": [
       {
-        "id": 1,
+        "id": "d3b07384-d9a4-4c8b-8c2a-9d8a7c6b5e4f",
         "title": "Сделать API",
         "description": "Поднять backend на FastAPI",
-        "parent_id": null,
-        "start_date": "2026-03-06",
-        "end_date": "2026-03-15",
-        "status": "In Progress"
+        "column_name": "In Progress",
+        "due_date": "2026-03-15",
+        "priority": "medium",
+        "task_type_name": "Task"
       }
     ],
     "current_date": "2026-03-07"
   }
-}
-```
-
----
-
-## Пример ответа
-
-```json
-{
-  "message_to_user": "Я предложил разбить задачу на несколько подзадач.",
-  "add_tasks": [
-    {
-      "title": "Описать Pydantic-схемы",
-      "description": "Подготовить схемы запросов и ответов для LLM API",
-      "parent_id": 1,
-      "start_date": "2026-03-07",
-      "end_date": "2026-03-08",
-      "status": "TODO"
-    }
-  ],
-  "change_tasks": [],
-  "delete_tasks": []
 }
 ```
 
@@ -579,3 +620,16 @@ uvicorn src.main:app --reload
 - настроить `.env`
 - убедиться, что внешний код передает данные по схемам
 - реализовать применение `add/change/delete` на стороне backend
+
+## Важное правило интеграции
+
+LLM не работает с `column_id` и `task_type_id`.
+
+LLM возвращает:
+- `column_name`
+- `task_type_name`
+
+Backend обязан:
+- преобразовать `column_name` в `column_id`;
+- преобразовать `task_type_name` в `task_type_id`;
+- отклонить ответ модели, если название колонки или типа задачи отсутствует в текущем контексте проекта.

@@ -6,29 +6,42 @@ from __future__ import annotations
 Что важно интегратору:
 - этот файл задает контракт входа и выхода LLM-модуля;
 - prompt в llm.py должен строиться на основе этих схем, а не на хардкоде;
-- если меняются схемы здесь, автоматически должен меняться и ожидаемый формат
-  данных для модели.
-
-Общая логика:
-- Task / LLMAddTask / LLMChangeTask описывают задачи;
-- LLMContext описывает контекст, который передается модели;
-- ChatRequest и EncouragementRequest — входные запросы в routes;
-- LLMResponse — единственный допустимый формат ответа модели.
+- модель работает с человекочитаемыми названиями колонок и типов задач;
+- backend сам делает mapping:
+    column_name -> column_id
+    task_type_name -> task_type_id
 """
 
 from datetime import date, datetime, UTC
-from enum import Enum
 from typing import List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class TaskStatus(str, Enum):
-    """Допустимые статусы задачи."""
+class Column(BaseModel):
+    """
+    Колонка kanban-доски проекта.
 
-    TODO = "TODO"
-    IN_PROGRESS = "In Progress"
-    FINISHED = "Finished"
+    Используется в контексте, чтобы модель видела допустимые состояния задач
+    в человекочитаемом виде.
+    """
+
+    id: UUID = Field(..., description="ID колонки.")
+    name: str = Field(..., description="Название колонки.")
+    sort_order: int = Field(..., description="Порядок колонки на доске.")
+
+
+class TaskType(BaseModel):
+    """
+    Тип задачи.
+
+    Используется в контексте, чтобы модель выбирала тип задачи по названию,
+    а не по UUID.
+    """
+
+    id: UUID = Field(..., description="ID типа задачи.")
+    name: str = Field(..., description="Название типа задачи.")
 
 
 class TaskBase(BaseModel):
@@ -39,17 +52,33 @@ class TaskBase(BaseModel):
     - новых задач;
     - изменяемых задач;
     - задач в контексте.
+
+    Важно:
+    - model работает с column_name, а не с column_id;
+    - model работает с task_type_name, а не с task_type_id.
     """
 
     title: str = Field(..., description="Название задачи.")
-    description: str = Field(..., description="Описание задачи.")
-    parent_id: Optional[int] = Field(
+    description: Optional[str] = Field(
         default=None,
-        description="ID родительской задачи. Для корневой задачи — null.",
+        description="Описание задачи.",
     )
-    start_date: date = Field(..., description="Дата начала задачи.")
-    end_date: date = Field(..., description="Дата окончания задачи.")
-    status: TaskStatus = Field(..., description="Статус задачи.")
+    column_name: str = Field(
+        ...,
+        description="Название колонки, в которой находится задача.",
+    )
+    due_date: Optional[date] = Field(
+        default=None,
+        description="Срок выполнения задачи.",
+    )
+    priority: Optional[str] = Field(
+        default=None,
+        description="Приоритет задачи.",
+    )
+    task_type_name: Optional[str] = Field(
+        default=None,
+        description="Название типа задачи.",
+    )
 
 
 class Task(TaskBase):
@@ -59,7 +88,7 @@ class Task(TaskBase):
     Используется в контексте модели и во внутренней логике модуля.
     """
 
-    id: int = Field(..., description="ID задачи.")
+    id: UUID = Field(..., description="ID задачи.")
 
 
 class LLMAddTask(TaskBase):
@@ -79,7 +108,7 @@ class LLMChangeTask(TaskBase):
     Используется в LLMResponse.change_tasks.
     """
 
-    id: int = Field(..., description="ID существующей задачи.")
+    id: UUID = Field(..., description="ID существующей задачи.")
 
 
 class ChatMessage(BaseModel):
@@ -97,10 +126,10 @@ class ProjectContext(BaseModel):
     """
     Общая информация о проекте.
 
-    Вынесена отдельно, чтобы не дублировать project_name в каждой задаче.
+    Вынесена отдельно, чтобы не дублировать данные проекта в каждой задаче.
     """
 
-    project_id: int = Field(..., description="ID проекта.")
+    project_id: UUID = Field(..., description="ID проекта.")
     project_name: str = Field(..., description="Название проекта.")
 
 
@@ -110,21 +139,36 @@ class LLMContext(BaseModel):
 
     Содержит:
     - информацию о проекте;
+    - доступные колонки проекта;
+    - доступные типы задач;
     - последние сообщения чата;
     - текущий список задач проекта;
     - текущую дату.
     """
 
     project: ProjectContext = Field(..., description="Информация о текущем проекте.")
+
+    columns: List[Column] = Field(
+        default_factory=list,
+        description="Список колонок текущего проекта (используй только значения из этого списка).",
+    )
+
+    task_types: List[TaskType] = Field(
+        default_factory=list,
+        description="Список типов задач, доступных в проекте (используй только значения из этого списка).",
+    )
+
     chat_history: List[ChatMessage] = Field(
         default_factory=list,
         description="Последние сообщения чата.",
         max_length=5,
     )
+
     project_tasks: List[Task] = Field(
         default_factory=list,
         description="Список задач текущего проекта.",
     )
+
     current_date: date = Field(..., description="Текущая дата.")
 
 
@@ -162,17 +206,20 @@ class LLMResponse(BaseModel):
         default=None,
         description="Ответ пользователю.",
     )
+
     add_tasks: List[LLMAddTask] = Field(
         default_factory=list,
         description="Задачи, которые нужно создать.",
     )
+
     change_tasks: List[LLMChangeTask] = Field(
         default_factory=list,
         description="Задачи, которые нужно изменить.",
     )
-    delete_tasks: List[int] = Field(
+
+    delete_tasks: List[UUID] = Field(
         default_factory=list,
-        description="ID задач для удаления. Сначала дочерние, потом родительские.",
+        description="ID задач для удаления.",
     )
 
 
